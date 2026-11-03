@@ -36,7 +36,7 @@ class AnalisisEstadistico:
         # Estado opcional para trazabilidad
         self._last_analysis = {}
     
-    def analizar_numericas(self, df, columnas):
+    def analizar_numericas(self, df: pd.DataFrame, columnas: list) -> pd.DataFrame:
 
         """
         Analiza las columnas numéricas de un DataFrame y devuelve un DataFrame con estadísticas descriptivas.
@@ -117,7 +117,7 @@ class AnalisisEstadistico:
         df_resultado = pd.DataFrame(resultados).T
         return df_resultado
 
-    def analizar_categoricas(self, df, columnas):
+    def analizar_categoricas(self, df: pd.DataFrame, columnas: list) -> pd.DataFrame:
 
         """
         Analiza las columnas categóricas de un DataFrame y devuelve un DataFrame con estadísticas descriptivas.
@@ -190,3 +190,81 @@ class AnalisisEstadistico:
             filas.append(fila)
 
         return pd.DataFrame(filas)
+
+    def analiza_target(self, df: pd.DataFrame, target: str):
+        """
+        Analiza la variable objetivo (target) de un DataFrame y devuelve un DataFrame con estadísticas descriptivas.
+        Parámetros:
+        - df: DataFrame de pandas que contiene los datos.
+        - target: Nombre de la columna objetivo a analizar.
+        Retorna:
+        - DataFrame con estadísticas descriptivas para la variable objetivo.
+        Estadísticas calculadas:
+        - Tipo de variable (numérica o categórica)
+        - Número de valores nulos
+        - Porcentaje de valores nulos
+        - Para variables numéricas: media, mediana, desviación estándar, rango, rango intercuartílico, coeficiente de variación, curtosis, asimetría
+        - Para variables categóricas: cardinalidad, cuota mayoritaria, niveles raros, distribución de frecuencias
+        Validaciones:
+        - La columna objetivo debe existir en el DataFrame.
+        - No debe contener valores infinitos.
+        """
+
+        resultados = {}
+        
+        if target not in df.columns:
+            raise ValueError(f'La columna objetivo {target} no existe en el DataFrame.')
+        
+        datos = df[target]
+        
+        # Validar existencia y longitud
+        if datos is None or len(datos) == 0:
+            raise ValueError(f'La columna objetivo {target} está vacía o es None.')
+
+        # Validar infinitos
+        if datos.isin([np.inf, -np.inf]).any():
+            raise ValueError(f'La columna objetivo {target} contiene valores infinitos.')
+
+        # Determinar tipo de variable
+        if pd.api.types.is_numeric_dtype(datos):
+
+                        # ---------- CALCULAMOS ESTADÍSTICOS ----------
+            # Ratio de desbalanceo:
+            ratio_desbalanceo = df[target].value_counts(normalize=True)
+            if ratio_desbalanceo.min() == 0:
+                raise ValueError(f'La columna objetivo {target} tiene una categoría con frecuencia cero, lo cual no es válido para análisis.')
+            else:
+                ratio = round(ratio_desbalanceo.max() / ratio_desbalanceo.min(), 2)
+
+            # Nulos y porcentaje de nulos:
+            nulos = datos.isnull().sum()
+
+            pct_nulos = (nulos/len(datos)) * 100
+
+            if pct_nulos > self.null_threshold:
+                self._warnings.append(f'La columna objetivo {target} tiene {nulos} valores nulos, lo cual puede afectar el análisis.')
+
+        else:
+            raise ValueError(f'La columna objetivo {target} no es de tipo numérico')
+    
+
+        resultados[target] = {
+            'Clases' : df[target].nunique(),
+            'Nulos' : nulos,
+            'Porcentaje nulos' : pct_nulos,    
+            'Ratio desbalanceo' : ratio,
+            }
+
+    def obtener_warnings(self)-> pd.DataFrame:
+        """
+        Devuelve las advertencias generadas durante el análisis.
+
+        Retorna:
+
+        - Lista de advertencias.
+        """
+        if not self._warnings:
+            return pd.DataFrame(columns=['Advertencia'])
+        else:
+
+            return pd.DataFrame({'Advertencia': self._warnings})
