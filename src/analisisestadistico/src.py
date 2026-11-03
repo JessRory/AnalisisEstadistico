@@ -191,80 +191,106 @@ class AnalisisEstadistico:
 
         return pd.DataFrame(filas)
 
-    def analiza_target(self, df: pd.DataFrame, target: str):
+    def analiza_target(self, df: pd.DataFrame, target: str)-> pd.DataFrame:
         """
-        Analiza la variable objetivo (target) de un DataFrame y devuelve un DataFrame con estadísticas descriptivas.
+        Analiza la variable objetivo (target). Soporta tanto numéricas discretas 
+        como categóricas (incluyendo strings).
+
         Parámetros:
+
         - df: DataFrame de pandas que contiene los datos.
         - target: Nombre de la columna objetivo a analizar.
         Retorna:
-        - DataFrame con estadísticas descriptivas para la variable objetivo.
+
+        - DataFrame con estadísticas descriptivas del target.
         Estadísticas calculadas:
-        - Tipo de variable (numérica o categórica)
-        - Número de valores nulos
-        - Porcentaje de valores nulos
-        - Para variables numéricas: media, mediana, desviación estándar, rango, rango intercuartílico, coeficiente de variación, curtosis, asimetría
-        - Para variables categóricas: cardinalidad, cuota mayoritaria, niveles raros, distribución de frecuencias
+
+        - Tipo de dato.
+        - Número de valores nulos.
+        - Porcentaje de valores nulos.
+
+        - Para categóricas:
+            - Número de clases.
+            - Cuota mayoritaria.
+            - Distribución de frecuencias.
+            - Ratio de desbalanceo (si hay más de una clase).
+
+        - Para numéricas continuas:
+            - Media.
+            - Mediana.
+            - Desviación estándar.
+            - Rango (max - min).
+            - Coeficiente de variación (std / media).
+            
         Validaciones:
         - La columna objetivo debe existir en el DataFrame.
-        - No debe contener valores infinitos.
         """
 
-        resultados = {}
-        
         if target not in df.columns:
             raise ValueError(f'La columna objetivo {target} no existe en el DataFrame.')
         
         datos = df[target]
         
-        # Validar existencia y longitud
         if datos is None or len(datos) == 0:
-            raise ValueError(f'La columna objetivo {target} está vacía o es None.')
-
-        # Validar infinitos
+            raise ValueError(f'La columna objetivo {target} está vacía.')
+        
         if datos.isin([np.inf, -np.inf]).any():
             raise ValueError(f'La columna objetivo {target} contiene valores infinitos.')
 
-        # Determinar tipo de variable
-        if pd.api.types.is_numeric_dtype(datos):
+        nulos = datos.isnull().sum()
+        pct_nulos = (nulos / len(datos)) * 100
+        
+        # Advertencia de nulos (común a ambos tipos):
+        if pct_nulos > self.null_threshold * 100:
+            self._warnings.append(f'Target {target}: {pct_nulos:.2f}% de valores nulos (umbral: {self.null_threshold*100}%).')
 
-                        # ---------- CALCULAMOS ESTADÍSTICOS ----------
-            # Ratio de desbalanceo:
-            ratio_desbalanceo = df[target].value_counts(normalize=True)
-            if ratio_desbalanceo.min() == 0:
-                raise ValueError(f'La columna objetivo {target} tiene una categoría con frecuencia cero, lo cual no es válido para análisis.')
+        resultados = {
+            'Tipo': datos.dtype,
+            'Nulos': nulos,
+            'Porcentaje nulos': pct_nulos
+        }
+
+        # Caso 1: Target Categórico (o numérico discreto con pocas clases):
+        if datos.dtype == 'object' or str(datos.dtype) == 'category' or (pd.api.types.is_numeric_dtype(datos) and datos.nunique() < 20):
+            frecuencias = datos.value_counts(normalize=True, dropna=False)
+            conteo_clases = datos.value_counts(dropna=False)
+            
+            resultados['Clases'] = datos.nunique(dropna=False)
+            resultados['Cuota mayoritaria'] = frecuencias.iloc[0]
+            resultados['Distribución'] = frecuencias.to_dict()
+            
+            # Detectar categorías raras:
+            categorias_raras = frecuencias[frecuencias < self.rare_threshold].index.tolist()
+            if categorias_raras:
+                self._warnings.append(f'Target {target} tiene categorías raras (<{self.rare_threshold*100}%): {categorias_raras}')
+
+            # Ratio de desbalanceo (solo si hay más de 1 clase):
+            if len(conteo_clases) > 1:
+                ratio = round(conteo_clases.max() / conteo_clases.min(), 2)
+                resultados['Ratio desbalanceo'] = ratio
             else:
-                ratio = round(ratio_desbalanceo.max() / ratio_desbalanceo.min(), 2)
-
-            # Nulos y porcentaje de nulos:
-            nulos = datos.isnull().sum()
-
-            pct_nulos = (nulos/len(datos)) * 100
-
-            if pct_nulos > self.null_threshold:
-                self._warnings.append(f'La columna objetivo {target} tiene {nulos} valores nulos, lo cual puede afectar el análisis.')
+                resultados['Ratio desbalanceo'] = None
+                
+        # Caso 2: Target numérico continuo:
+        elif pd.api.types.is_numeric_dtype(datos):
+            media = np.mean(datos)
+            std = np.std(datos)
+            resultados['Media'] = media
+            resultados['Mediana'] = np.median(datos)
+            resultados['Desviación estándar'] = std
+            resultados['Rango'] = np.ptp(datos)
+            
+            if abs(media) > 1e-8:
+                resultados['Coeficiente variación'] = std / media
+            else:
+                resultados['Coeficiente variación'] = float('inf')
 
         else:
-            raise ValueError(f'La columna objetivo {target} no es de tipo numérico')
-    
+            raise ValueError(f'El tipo de dato {datos.dtype} para {target} no está soportado actualmente.')
 
-        resultados[target] = {
-            'Clases' : df[target].nunique(),
-            'Nulos' : nulos,
-            'Porcentaje nulos' : pct_nulos,    
-            'Ratio desbalanceo' : ratio,
-            }
+        return pd.DataFrame(resultados).T
 
-    def obtener_warnings(self)-> pd.DataFrame:
-        """
-        Devuelve las advertencias generadas durante el análisis.
-
-        Retorna:
-
-        - Lista de advertencias.
-        """
-        if not self._warnings:
-            return pd.DataFrame(columns=['Advertencia'])
-        else:
-
-            return pd.DataFrame({'Advertencia': self._warnings})
+    @property
+    def warnings(self):
+        """Devuelve una copia de las advertencias acumuladas."""
+        return self._warnings.copy()
