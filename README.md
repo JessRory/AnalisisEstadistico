@@ -1,13 +1,19 @@
+
+### 1. Actualización de `README.md`
+
+```markdown
 # Análisis Estadístico
 
 Kit de análisis estadístico exploratorio para datasets de Machine Learning, diseñado para uso personal en proyectos de churn prediction.
 
 ## Características
 
-Dos funciones principales para auditar tu dataset antes de modelar:
+Tres funciones principales para auditar tu dataset antes de modelar:
 
 - **Variables numéricas**: media, mediana, desviación, coeficiente de variación, curtosis, asimetría
 - **Variables categóricas**: cardinalidad, cuota mayoritaria, niveles raros, distribución completa
+- **Detección inteligente de Outliers**: Cálculo automático de límites IQR y alerta si existen valores atípicos.
+- **Variable objetivo (Target)**: análisis determinístico de desbalanceo, detección de nulos y categorías raras
 
 ## Instalación
 
@@ -52,6 +58,7 @@ df = pd.read_csv("tu_dataset.csv")
 
 columnas_numericas = ["edad", "ingresos", "tiempo_servicio"]
 columnas_categoricas = ["genero", "region", "canal_adquisicion"]
+target_column = "churn"
 ```
 
 ### 4. Analizar variables numéricas
@@ -91,6 +98,27 @@ distribucion_region = resultado_cat.loc[resultado_cat['Variable'] == 'region', '
 print(distribucion_region['Norte'])  # Muestra frecuencia de Norte
 ```
 
+### 6. Analizar la variable objetivo (Target)
+
+Este método es crucial para detectar problemas de desbalanceo antes de entrenar.
+
+```python
+resultado_target = analizador.analiza_target(df, target_column)
+print(resultado_target)
+```
+
+**Salida:**
+```
+            Tipo  Clases  Nulos  Porcentaje nulos  Ratio desbalanceo
+churn    int64        2      0               0.0                2.77
+```
+
+**Características del análisis de target:**
+- Detecta automáticamente si es numérico o categórico (strings, category).
+- Calcula el ratio de desbalanceo (clase mayoritaria / minoritaria).
+- Identifica categorías raras (< `rare_threshold`).
+- Genera advertencias si hay nulos o clases dominantes.
+
 ## Métricas Calculadas
 
 ### Numéricas
@@ -105,6 +133,9 @@ print(distribucion_region['Norte'])  # Muestra frecuencia de Norte
 | coeficiente_variacion | σ/μ (dispersión relativa) |
 | Curtosis | Forma de la cola de la distribución |
 | Asimetria | Sesgo de la distribución |
+| Limite Inferior | Umbral mínimo (Q1 - k·IQR) para detectar outliers inferiores. |
+| Limite Superior | Umbral máximo (Q3 + k·IQR) para detectar outliers superiores. |
+| Porcentaje Outliers | Proporción de valores que exceden los límites IQR. |
 
 **Protecciones automáticas:**
 - Si media ≈ 0: coeficiente de variación = ∞
@@ -120,6 +151,15 @@ print(distribucion_region['Norte'])  # Muestra frecuencia de Norte
 | Nulos | Cantidad absoluta de valores ausentes |
 | Porcentaje nulos | Proporción de nulos sobre el total |
 | Distribución | Diccionario con frecuencia relativa por nivel |
+
+### Variable Objetivo
+
+| Métrica | Descripción |
+|---|---|
+| Tipo | dtype de la columna (int, float, object, category) |
+| Clases | Número de valores únicos |
+| Ratio desbalanceo | Cociente entre la clase mayoritaria y la minoritaria |
+| Categorías raras | Lista de niveles con frecuencia < umbral |
 
 ## Validaciones
 
@@ -141,21 +181,31 @@ La función lanza `ValueError` si detecta:
 - Valores infinitos
 - dtype numérico (se rechaza)
 
+### Variable Objetivo
+
+La función lanza `ValueError` si detecta:
+- Columna inexistente
+- Columna vacía o `None`
+- Valores infinitos
+- Categoría con frecuencia cero (vacía)
+
 ## Advertencias
 
-Si alguna columna supera los umbrales configurables, el analizador registra advertencias internas:
+El analizador genera advertencias automáticas cuando detecta patrones que requieren atención humana:
+
+1. **Coeficiente de Variación alto** (> 2.0): Dispersión extrema respecto a la media.
+2. **Asimetría extrema** (≥ 1.0 o ≤ -1.0): Distribución fuertemente sesgada.
+3. **Presencia de Outliers**: Cualquier valor fuera de los límites IQR (revisa si son errores o casos naturales).
 
 ```python
-analizador.analizar_numericas(df, ["edad", "ingresos"])
-warnings = analizador.get_warnings()
+# Ejemplo de salida de advertencias
+warnings = analizador.warnings
 for w in warnings:
     print(w)
-```
 
-**Ejemplo de aviso:**
-```
-Columna ingresos tiene 40.50% de valores nulos, lo cual supera el umbral de 5.00%.
-```
+# Salida posible:
+# • Columna TotalCharges: 1.24% de valores fuera de límites IQR ([-150.00, 12500.00]). Revisar origen.
+# • Columna Tenure: Asimetría extrema (-2.15). Considerar transformación si el modelo lo requiere.
 
 ## Ejemplo Completo
 
@@ -169,6 +219,7 @@ df = pd.read_csv("customer_churn.csv")
 # 2. Definir variables
 num = ["age", "income", "tenure", "monthly_charges"]
 cat = ["gender", "contract_type", "payment_method"]
+target = "churn"
 
 # 3. Configurar analizador (opcional)
 analizador = AnalisisEstadistico(null_threshold=0.10, rare_threshold=0.05)
@@ -176,11 +227,12 @@ analizador = AnalisisEstadistico(null_threshold=0.10, rare_threshold=0.05)
 # 4. Ejecutar análisis
 resultados_num = analizador.analizar_numericas(df, num)
 resultados_cat = analizador.analizar_categoricas(df, cat)
+resultados_target = analizador.analiza_target(df, target)
 
 # 5. Revisar advertencias
-if analizador.get_warnings():
+if analizador.warnings:
     print("\n⚠️  ADVERTENCIAS:")
-    for w in analizador.get_warnings():
+    for w in analizador.warnings:
         print(f"  • {w}")
 
 # 6. Inspeccionar distribución específica
@@ -207,7 +259,7 @@ Ejecutar solo tests de categóricas:
 uv run pytest -v Test/test_categoricas.py
 ```
 
-**Resultados actuales:** 87/87 tests passing
+**Resultados actuales:** 87/87 tests passing (en desarrollo: tests para `analiza_target`)
 
 ## Estructura del Proyecto
 
@@ -216,7 +268,8 @@ AnalisisEstadistico/
 ├── src/
 │   └── analisisestadistico/
 │       ├── __init__.py
-│       └── src.py
+│       └── src.py          # Clase AnalisisEstadistico
+├── partition_validator.py  # Próxima implementación: Validador de particiones
 ├── Test/
 │   ├── tests.py
 │   └── test_categoricas.py
@@ -228,18 +281,21 @@ AnalisisEstadistico/
 
 ## Notas de Uso Personal
 
-- Diseñado para análisis exploratorio previo al modelado
-- No incluye análisis de particiones (train/test split)
-- No incluye recomendaciones de codificación automática
-- Los warnings se acumulan entre llamadas; usar `reset_warnings()` si es necesario
-- Ideal para identificar variables con problemas antes de entrenar modelos
+- Diseñado para análisis exploratorio previo al modelado.
+- **Nuevo**: Análisis determinístico del target para detectar desbalanceo temprano.
+- **Nuevo**: Los outliers se detectan con el método IQR (factor configurable). Cualquier desviación lanza una alerta para revisión manual.
+- No incluye análisis de particiones (train/test split) aún (próxima clase: `ValidadorParticiones`).
+- No incluye recomendaciones de codificación automática.
+- Los warnings se acumulan entre llamadas; se recomienda instanciar un nuevo objeto para cada dataset.
+- Ideal para identificar variables con problemas antes de entrenar modelos.
 
 ## Versión
 
-**Fecha:** 24 Oct 2026  
-**Estado:** Prototipo funcional con 87 tests  
-**Próxima iteración:** Integración con dataset de churn real
+**Fecha:** 03 Nov 2026  
+**Estado:** Prototipo funcional con 87 tests + método `analiza_target`  
+**Próxima iteración:** Implementación de clase `ValidadorParticiones`
 
 ---
 
 *Desarrollado por Josu con asistencia de Lumo.*
+```

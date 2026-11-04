@@ -96,22 +96,45 @@ class AnalisisEstadistico:
             else:
                 coef_var = std / media
 
+                if coef_var > 2.0:
+                    self._warnings.append(f"Columna {columna}: Coeficiente de variación alto ({coef_var:.2f}). Revisar si es adecuado para el análisis.")
+
             if np.ptp(datos) == 0:
                 skew = None
                 curtosis = None
             else:
                 skew = stats.skew(datos)
+                if skew >=1.0 or skew <= -1.0:
+                    self._warnings.append(f"Columna {columna}: Asimetría extrema ({skew:.2f}). Considerar transformación si hay modelo y este lo requiere.")
                 curtosis = stats.kurtosis(datos)
-            
+
+            # Detectar outliers usando el método del rango intercuartílico (IQR)
+            q1 = np.percentile(datos, 25)
+            q3 = np.percentile(datos, 75)
+            iqr = q3 - q1
+            limite_inf = q1 - self.outliers_factor * iqr
+            limite_sup = q3 + self.outliers_factor * iqr
+
+            outliers_mask = (datos < limite_inf) | (datos > limite_sup)
+            pct_outliers = outliers_mask.sum() / len(datos)
+
+            if pct_outliers > 0:
+                self._warnings.append(
+                    f"Columna {columna}: {pct_outliers:.2%} de valores fuera de límites IQR "
+                    f"([{limite_inf:.2f}, {limite_sup:.2f}]). Revisar origen.")
+                
             resultados[columna] = {
                 'media': media,
                 'mediana': np.median(datos),
                 'desviacion_estandar': std,
                 'rango': np.ptp(datos),
-                'rango_intercuartilico': np.percentile(datos, 75) - np.percentile(datos, 25),
+                'rango_intercuartilico': iqr,
                 'coeficiente_variacion': coef_var,
                 'Curtosis': curtosis,
-                'Asimetria': skew
+                'Asimetria': skew,
+                'Limite Inferior': limite_inf,
+                'Limite Superior': limite_sup,
+                'Porcentaje Outliers': pct_outliers
             }
         
         df_resultado = pd.DataFrame(resultados).T
