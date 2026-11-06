@@ -88,7 +88,8 @@ class AnalisisEstadistico:
             if datos.dtype == bool:
                 raise ValueError(f'Columna {columna} es booleana. Trátela como categórica.')
 
-            if datos.nunique() <= 2:
+            unicos = set(pd.unique(datos.dropna()))
+            if len(unicos) == 2 and unicos.issubset({0, 1}):
 
                 fila, mensajes = analiza_bernoulli(datos)
                 self._warnings.extend(mensajes)
