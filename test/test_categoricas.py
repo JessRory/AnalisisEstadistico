@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from analisisestadistico.src import AnalisisEstadistico
+from analisisestadistico.analisis_estadistico import AnalisisEstadistico
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,13 @@
+README.md
+pyproject.toml
+src/analisisestadistico/__init__.py
+src/analisisestadistico/analisis_estadistico.py
+src/analisisestadistico/funciones.py
+src/analisisestadistico.egg-info/PKG-INFO
+src/analisisestadistico.egg-info/SOURCES.txt
+src/analisisestadistico.egg-info/dependency_links.txt
+src/analisisestadistico.egg-info/requires.txt
+src/analisisestadistico.egg-info/top_level.txt
+test/test_categoricas.py
+test/test_funciones.py
+test/test_numericas.py

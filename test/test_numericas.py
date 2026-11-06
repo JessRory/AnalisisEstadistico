@@ -21,8 +21,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-# Ajusta esto a la ubicación real de tu clase:
-from analisisestadistico.src import AnalisisEstadistico
+
+from analisisestadistico.analisis_estadistico import AnalisisEstadistico
 
 
 # ---------------------------------------------------------------------------

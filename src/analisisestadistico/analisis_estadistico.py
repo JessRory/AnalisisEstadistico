@@ -4,6 +4,8 @@ import pandas as pd
 from statistics import mode
 from scipy import stats
 
+from .funciones import analiza_bernoulli
+
 class AnalisisEstadistico:
 
     """
@@ -85,6 +87,13 @@ class AnalisisEstadistico:
                 raise ValueError(f'Columna {columna} contiene valores infinitos.')
             if datos.dtype == bool:
                 raise ValueError(f'Columna {columna} es booleana. Trátela como categórica.')
+
+            if datos.nunique() <= 2:
+
+                fila, mensajes = analiza_bernoulli(datos)
+                self._warnings.extend(mensajes)
+                resultados[columna] = fila
+                continue
             
             # Calcular estadísticos
             media = np.mean(datos)
