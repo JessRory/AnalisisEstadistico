@@ -1,5 +1,3 @@
-# análisis_estadístico.py
-
 # Importamos las librerías necesarias:
 import numpy as np
 import pandas as pd
@@ -9,8 +7,10 @@ from scipy import stats
 class AnalisisEstadistico:
 
     """
-    Clase para realizar análisis estadístico de columnas numéricas y categóricas 
-    en un DataFrame de pandas.   
+    Clase para realizar análisis estadístico de columnas numéricas y categóricas en un DataFrame.
+    Proporciona métodos para calcular estadísticas descriptivas, detectar outliers y analizar la variable objetivo (target).
+    Permite configurar umbrales para nulos, outliers y categorías raras.
+    Mantiene un registro de advertencias generadas durante el análisis para su revisión posterior.
     """
     def __init__(self, null_threshold: float = 0.05, 
                  outliers_factor: float = 1.5,

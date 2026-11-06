@@ -1,8 +1,0 @@
-README.md
-pyproject.toml
-src/analisisestadistico/src.py
-src/analisisestadistico.egg-info/PKG-INFO
-src/analisisestadistico.egg-info/SOURCES.txt
-src/analisisestadistico.egg-info/dependency_links.txt
-src/analisisestadistico.egg-info/requires.txt
-src/analisisestadistico.egg-info/top_level.txt
